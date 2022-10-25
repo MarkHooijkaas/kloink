@@ -18,7 +18,7 @@ main() {
         parse_option "$@"
         shift
     done
-    if [ "$#" -ne 1 ]; then
+    if [ "$#" -ne 2 ]; then
         echo 2 arguments needed
         show_help
         exit 1
@@ -79,7 +79,7 @@ klone_ssh() {
     VERSION=$2
     DIR=$3
     REPO=${KLONE_SSH_REPO}/${NAME}.git
-    echo git clone  -c advice.detachedHead=false --branch=$VERSION -- $REPO $DIR
+    git clone  -c advice.detachedHead=false --branch=$VERSION -- $REPO $DIR
 }
 
 klone_https() {
@@ -90,7 +90,7 @@ klone_https() {
     SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     export GIT_ASKPASS=${SCRIPT_DIR}/echo-klone-repo-psw.sh
     #CLONE_OPTS="--depth 1"
-    echo git clone  -c advice.detachedHead=false --branch=$VERSION -- $REPO $DIR
+    git clone  -c advice.detachedHead=false --branch=$VERSION -- $REPO $DIR
 }
 
 klone() {

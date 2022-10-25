@@ -1,0 +1,130 @@
+#!/bin/bash
+set -u -e
+
+INFO=true
+VERBOSE=false
+function info()    { ${INFO-true} && echo "$*" || true; }
+function verbose() { ${VERBOSE-false} && echo "$*" || true; }
+OPTS=""
+
+
+CMD=git_status
+parse_options() {
+while [[ ${1:-} == -* ]]; do
+    cmd=$1
+    shift
+    case $cmd in
+        -h|help|--help)
+            show_help
+            exit 0
+            ;;
+        -v|--verbose)
+            export VERBOSE=true
+            export INFO=true
+            OPTS=--verbose
+            ;;
+        -q|--quiet)
+            export VERBOSE=false
+            export INFO=false
+            OPTS=--quiet
+            ;;
+        -s|--status)
+            CMD=git_status
+            ;;
+        -l|--pull)
+            CMD=git_pull
+            ;;
+        -m|--commit)
+            CMD=git_commit
+            comment=$1
+            shift
+            ;;
+        -a|--add)
+            CMD=git_add
+            file=$1
+            shift
+            ;;
+        --push)
+            CMD=git_push
+            ;;
+        -c|--cmd)
+            CMD=any_command
+            any="$1 || true"
+            shift
+            ;;
+        *)  # Default case: No more options, so break out of the loop.
+            show_help
+            exit 1
+    esac
+done
+if [[ -z ${1:-} ]]; then
+	dirs=*
+else
+	dirs="${@}"
+fi
+}
+
+show_help() {
+    cat << EOF
+Usage: ${0##*/} [options] [dir ...]
+
+The purpose of sgit is git commands in multiple directories
+Options can be:
+    -h|--help          display this help and exit
+    -v|--verbose       verbose mode.
+    -q|--quiet         quiet mode.
+    -s|--status        show git status (default)
+    -m|--commit <msg>  git commit with message
+    -a|--add <file>    git add one file or dir (e.g. .)
+    -l|--pull          git pull
+       --push          git push
+    -c|--cmd <cmd>     perform any command
+EOF
+}
+
+git_status() {
+    if $VERBOSE ; then
+        git status
+    else
+        git status --short
+    fi
+}
+
+git_pull() {
+    git pull $OPTS
+}
+
+git_push() {
+    git push $OPTS
+}
+
+git_commit() {
+    git commit -m "$comment" $OPTS || true
+}
+
+git_add() {
+    git add $file $OPTS || true
+}
+
+
+any_command() {
+    eval $any
+}
+
+
+parse_options "$@"
+
+info dirs=$dirs
+
+MAIN_DIR=`pwd`
+for dir in $dirs; do
+    app=${dir%.deploy*}
+    if [[ -d $dir/.git ]]; then
+        info ======= $dir =============
+        cd $dir
+        $CMD
+        cd $MAIN_DIR
+    else
+        verbose Skipping $dir
+    fi
+done

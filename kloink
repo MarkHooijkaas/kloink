@@ -15,10 +15,7 @@ fi
 : ${KLOINK_KLONE_PROTOCOL:=ssh}
 
 main() {
-    while [[ ${1:-} == -* ]]; do
-        parse_option "$@"
-        shift
-    done
+    parse_options "$@"
     if [ "$#" -ne 2 ]; then
         echo 2 arguments needed
         show_help
@@ -88,22 +85,29 @@ klink() {
     fi
 }
 
-parse_option() {
-    case $1 in
-        -h|help|--help)
-            show_help
-            exit 0
-            ;;
-        --ssh)
-            KLOINK_KLONE_PROTOCOL=ssh
-            ;;
-        --https)
-            KLOINK_KLONE_PROTOCOL=https
-            ;;
-        *)  # Default case: No more options, so break out of the loop.
-            show_help
-            exit 1
-    esac
+parse_options() {
+    while [[ ${1:-} == -* ]]; do
+        case $1 in
+            -h|help|--help)
+                show_help
+                exit 0
+                ;;
+            -d|--dir)
+                KLOINK_DIR=$2
+                shift
+                ;;
+            --ssh)
+                KLOINK_KLONE_PROTOCOL=ssh
+                ;;
+            --https)
+                KLOINK_KLONE_PROTOCOL=https
+                ;;
+            *)  # Default case: No more options, so break out of the loop.
+                show_help
+                exit 1
+        esac
+        shift
+    done
 }
 
 show_help() {
@@ -115,23 +119,10 @@ This program does a git clone of a repository to have possibly multiple version 
 of the same repo.
 
 Options can be:
-       --ssh         git clone using ssh (the default)
-       --https       git clone using https
+    -d|--dir      the directory where new clones are stored see KLOINK_DIR (default: ~/.cache/kloink)
+    --ssh         git clone using ssh (the default)
+    --https       git clone using https
 
-Configuration:
-If a file ~/.config/KLOINK/KLOINK.conf exists, this file is sourced.
-This can typically be used to set the following variables:
-- **KLOINK_DEFAULT_DIR**
-- **KLOINK_DEFAULT_SSH_REPO**
-- **KLOINK_DEFAULT_HTTPS_REPO**
-These DEFAULT vars are used to set the following vars, if they are not set.
-This way the defaults in KLOINK.conf, will not be used if these var are set
-- **KLOINK_DIR** : the directory in which all clones will be stored (default ~/KLOINK )
-- **KLOINK_SSH_REPO** : the repository when doing a git clone using ssh protocol
-- **KLOINK_HTTPS_REPO** : the repository when doing a git clone using https protocol
-
-- **KLOINK_PROTO** : default protocol if not specified (default is ssh)
-- **KLOINK_REPO_PSW** : password that is used when git asks for a password with https checkout
 EOF
 }
 

@@ -12,7 +12,7 @@ fi
 : ${KLOINK_PATH:=$KLOINK_DIR}
 : ${KLOINK_SSH_REPO:=${KLOINK_DEFAULT_SSH_REPO:-unknown}}
 : ${KLOINK_HTTPS_REPO:=${KLOINK_DEFAULT_HTTPS_REPO:-unknown}}
-: ${KLOINK_PROTO:=ssh}
+: ${KLOINK_KLONE_PROTOCOL:=ssh}
 
 main() {
     while [[ ${1:-} == -* ]]; do
@@ -84,7 +84,7 @@ klink() {
         exit 1
     else
         echo cloning $DIR
-        klone_$KLOINK_PROTO $NAME $VERSION $DIR
+        klone_$KLOINK_KLONE_PROTOCOL $NAME $VERSION $DIR
     fi
 }
 
@@ -95,10 +95,10 @@ parse_option() {
             exit 0
             ;;
         --ssh)
-            KLOINK_PROTO=ssh
+            KLOINK_KLONE_PROTOCOL=ssh
             ;;
         --https)
-            KLOINK_PROTO=https
+            KLOINK_KLONE_PROTOCOL=https
             ;;
         *)  # Default case: No more options, so break out of the loop.
             show_help

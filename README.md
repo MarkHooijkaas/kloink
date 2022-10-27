@@ -14,14 +14,18 @@ kloink <appname> <version>
 ```
 
 # Usage
+```
 Usage: kloink [options] <name> <version>
 
 This program does a git clone of a repository to have possibly multiple version (tags/branches)
 of the same repo.
 
 Options can be:
-       --ssh         git clone using ssh (the default)
-       --https       git clone using https
+    -d|--dir <dir>   the directory where new clones are stored. see KLOINK_DIR (default: ~/.cache/kloink)
+    -p|--path <dirs> a colon separated list of dirs to search for clones. see KLOINK_PATH
+    --ssh            git clone using ssh (the default)
+    --https          git clone using https
+```
 
 # Configuration:
 kloink has several options.

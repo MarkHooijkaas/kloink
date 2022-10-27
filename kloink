@@ -1,0 +1,160 @@
+#!/usr/bin/bash
+set -e -u
+
+# load default settings from config file if exists
+KLOINK_CONFIG_FILE=~/.config/kloink/kloink.conf
+if [[ -f ${KLOINK_CONFIG_FILE} ]]; then
+    source ${KLOINK_CONFIG_FILE}
+fi
+
+# use default values, unless vars are already defined
+: ${KLOINK_DIR:=${KLOINK_DEFAULT_DIR:-~/.cache/kloink}}
+: ${KLOINK_PATH:=$KLOINK_DIR}
+: ${KLOINK_SSH_REPO:=${KLOINK_DEFAULT_SSH_REPO:-unknown}}
+: ${KLOINK_HTTPS_REPO:=${KLOINK_DEFAULT_HTTPS_REPO:-unknown}}
+: ${KLOINK_PROTO:=ssh}
+
+main() {
+    while [[ ${1:-} == -* ]]; do
+        parse_option "$@"
+        shift
+    done
+    if [ "$#" -ne 2 ]; then
+        echo 2 arguments needed
+        show_help
+        exit 1
+    fi
+    NAME=$1
+    VERSION=$2
+    KLOINK_LINK=$(klone_find_in_path $NAME $VERSION)
+    if [[ ! -d $KLOINK_LINK ]]; then
+        klone $NAME $VERSION
+        KLOINK_LINK=$KLOINK_DIR/$NAME-$VERSION
+    fi
+    klink $NAME $KLOINK_LINK
+}
+
+klone_find_in_path() {
+    NAME=$1
+    VERSION=$2
+    # First search in the path, and finally search in the KLOINK_DIR
+    # The KLOINK_DIR maybe first in the path as well, but it needs to be searched at least once
+    # because that is where it will be kloned if not found
+    for dir in ${KLOINK_PATH//:/ } ${KLOINK_DIR}; do
+        if [[ -d $dir/$NAME-$VERSION ]]; then
+            echo $dir/$NAME-$VERSION
+            return
+        fi
+    done
+}
+
+
+klink() {
+    NAME=$1
+    KLOINK_LINK=$2
+    if [[ -h $NAME ]]; then
+        echo updating link $NAME to $KLOINK_DIR
+        rm $NAME # somehow the NAME --force does not seem to work
+        ln --force -s $KLOINK_LINK $NAME
+    elif [[ -e $NAME ]]; then
+        echo ERROR: $NAME already exists, but is not a symbolic link
+        exit 1
+    else
+        echo creating link $NAME to $KLOINK_DIR
+        ln -s $KLOINK_LINK $NAME
+    fi
+}
+
+ klone() {
+    NAME=$1
+    VERSION=$2
+    DIR=${KLOINK_DIR}/$NAME-$VERSION
+    CUR_DIR=`pwd`
+    if [[ -d $DIR ]]; then
+        cd $DIR
+        echo $DIR already exists, checking if version is $VERSION
+        CUR_VERSION=`git symbolic-ref -q --short HEAD || git describe --tags --exact-match`
+        if [[ $VERSION != $CUR_VERSION ]]; then
+            echo Current build/$1 dir is on version $CUR_VERSION, please remove this first
+            exit 1
+        fi
+        cd $CUR_DIR
+    elif [[ -e $DIR ]]; then
+        echo ERROR: $DIR already exists, but is not a directory
+        exit 1
+    else
+        echo cloning $DIR
+        klone_$KLOINK_PROTO $NAME $VERSION $DIR
+    fi
+}
+
+parse_option() {
+    case $1 in
+        -h|help|--help)
+            show_help
+            exit 0
+            ;;
+        --ssh)
+            KLOINK_PROTO=ssh
+            ;;
+        --https)
+            KLOINK_PROTO=https
+            ;;
+        *)  # Default case: No more options, so break out of the loop.
+            show_help
+            exit 1
+    esac
+}
+
+show_help() {
+    # show help while stripping of MarkDown ** bold markup
+    sed -e 's/*//g' << EOF
+Usage: ${0##*/} [options] <name> <version>
+
+This program does a git clone of a repository to have possibly multiple version (tags/branches)
+of the same repo.
+
+Options can be:
+       --ssh         git clone using ssh (the default)
+       --https       git clone using https
+
+Configuration:
+If a file ~/.config/KLOINK/KLOINK.conf exists, this file is sourced.
+This can typically be used to set the following variables:
+- **KLOINK_DEFAULT_DIR**
+- **KLOINK_DEFAULT_SSH_REPO**
+- **KLOINK_DEFAULT_HTTPS_REPO**
+These DEFAULT vars are used to set the following vars, if they are not set.
+This way the defaults in KLOINK.conf, will not be used if these var are set
+- **KLOINK_DIR** : the directory in which all clones will be stored (default ~/KLOINK )
+- **KLOINK_SSH_REPO** : the repository when doing a git clone using ssh protocol
+- **KLOINK_HTTPS_REPO** : the repository when doing a git clone using https protocol
+
+- **KLOINK_PROTO** : default protocol if not specified (default is ssh)
+- **KLOINK_REPO_PSW** : password that is used when git asks for a password with https checkout
+EOF
+}
+
+
+ klone_ssh() {
+    NAME=$1
+    VERSION=$2
+    DIR=$3
+    REPO=${KLOINK_SSH_REPO}/${NAME}.git
+    git clone  -c advice.detachedHead=false --branch=$VERSION -- $REPO $DIR
+}
+
+ klone_https() {
+    NAME=$1
+    VERSION=$2
+    DIR=$3
+    REPO=${KLOINK_HTTPS_REPO}/${NAME}.git
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+    export GIT_ASKPASS=${SCRIPT_DIR}/echo- kloink-repo-psw.sh
+    #CLONE_OPTS="--depth 1"
+    git clone  -c advice.detachedHead=false --branch=$VERSION -- $REPO $DIR
+}
+
+
+
+main "${@}"

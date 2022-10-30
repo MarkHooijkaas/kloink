@@ -13,22 +13,69 @@ fi
 : ${KLOINK_SSH_REPO:=${KLOINK_DEFAULT_SSH_REPO:-unknown}}
 : ${KLOINK_HTTPS_REPO:=${KLOINK_DEFAULT_HTTPS_REPO:-unknown}}
 : ${KLOINK_KLONE_PROTOCOL:=ssh}
+: ${KLOINK_VERBOSITY:=}
 
 main() {
-    parse_options "$@"
-    if [ "$#" -ne 2 ]; then
-        echo 2 arguments needed
-        show_help
-        exit 1
-    fi
-    NAME=$1
-    VERSION=$2
-    KLOINK_LINK=$(klone_find_in_path $NAME $VERSION)
-    if [[ ! -d $KLOINK_LINK ]]; then
-        klone $NAME $VERSION
-        KLOINK_LINK=$KLOINK_DIR/$NAME-$VERSION
-    fi
-    klink $NAME $KLOINK_LINK
+    CMD=help
+    while [[ ${1:-} == -* ]]; do
+        arg=$1
+        case $1 in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            -v|--verbose)
+                KLOINK_VERBOSITY=-v
+                ;;
+            -q|--quiet)
+                KLOINK_VERBOSITY=-q
+                ;;
+            -d|--dir)
+                KLOINK_DIR=$2
+                shift
+                ;;
+            -p|--path)
+                KLOINK_PATH=$2
+                shift
+                ;;
+            --ssh)
+                KLOINK_KLONE_PROTOCOL=ssh
+                ;;
+            --https)
+                KLOINK_KLONE_PROTOCOL=https
+                ;;
+            *)  # Default case: No more options, so break out of the loop.
+                CMD=$1
+                break
+                ;;
+        esac
+        shift
+    done
+    case $CMD in
+        klone)
+            kloink_klone "${@}"
+            ;;
+        link)
+            kloink_link "${@}"
+            ;;
+        s|status)
+            CMD="git status --short"
+            ;;
+        pull)
+            CMD="git pull $KLOINK_VERBOSITY"
+            ;;
+        push)
+            CMD="git push $KLOINK_VERBOSITY"
+            ;;
+        cmd)
+            CMD=any_command
+            any="$1 || true"
+            ;;
+        *)
+            echo unknown subcommand $CMD
+            show_help
+            exit 1
+    esac
 }
 
 klone_find_in_path() {
@@ -45,84 +92,112 @@ klone_find_in_path() {
     done
 }
 
+kloink_link() {
+    if [ "$#" -ne 2 ]; then
+        echo '2 arguments needed: [path/]<name> <version>'
+        show_help
+        exit 1
+    fi
+    local path=$1
+    local version=$2
+    local name=${path##*/}
+    local dir=$KLOINK_DIR/$name-$version
 
-klink() {
-    NAME=$1
-    KLOINK_LINK=$2
-    if [[ -h $NAME ]]; then
-        echo updating link $NAME to $KLOINK_DIR
-        rm $NAME # somehow the NAME --force does not seem to work
-        ln --force -s $KLOINK_LINK $NAME
-    elif [[ -e $NAME ]]; then
-        echo ERROR: $NAME already exists, but is not a symbolic link
+    kloink_klone $name $version  # make sure the klone exists
+    if [[ -h $path ]]; then
+        echo updating link $path to $dir
+        rm $path # somehow the NAME --force does not seem to work
+        ln --force -s $dir $path
+    elif [[ -e $name ]]; then
+        echo ERROR: $name already exists, but is not a symbolic link
         exit 1
     else
-        echo creating link $NAME to $KLOINK_DIR
-        ln -s $KLOINK_LINK $NAME
+        echo creating link $path to $dir
+        ln -s $dir $path
     fi
 }
 
- klone() {
-    NAME=$1
-    VERSION=$2
-    DIR=${KLOINK_DIR}/$NAME-$VERSION
-    CUR_DIR=`pwd`
-    if [[ -d $DIR ]]; then
-        cd $DIR
-        echo $DIR already exists, checking if version is $VERSION
-        CUR_VERSION=`git symbolic-ref -q --short HEAD || git describe --tags --exact-match`
-        if [[ $VERSION != $CUR_VERSION ]]; then
-            echo Current build/$1 dir is on version $CUR_VERSION, please remove this first
+kloink_klone() {
+    if [ "$#" -ne 2 ]; then
+        echo '2 arguments needed: <name> <version>'
+        show_help
+        exit 1
+    fi
+    local name=$1
+    local version=$2
+    local dir=$KLOINK_DIR/$name-$version
+    if [[ -d $dir ]]; then
+        _check_klone $dir $version
+    elif [[ ! -e $dir ]]; then
+        klone_$KLOINK_KLONE_PROTOCOL $NAME $VERSION
+    else
+        echo $dir already exist but is not a correct clone
+        exit 1
+    fi
+}
+
+_check_klone() {
+    local dir=$1
+    local version=$2
+    if [[ -d $dir ]]; then
+        echo $dir already exists, checking if version is $version
+        cur_version=$(kloink_git_version $dir)
+        if [[ $version != $cur_version ]]; then
+            echo Current dir $dir is on version $cur_version, please remove this first
             exit 1
         fi
-        cd $CUR_DIR
-    elif [[ -e $DIR ]]; then
-        echo ERROR: $DIR already exists, but is not a directory
+    elif [[ -e $dir ]]; then
+        echo ERROR: $dir already exists, but is not a directory
         exit 1
-    else
-        echo cloning $DIR
-        klone_$KLOINK_KLONE_PROTOCOL $NAME $VERSION $DIR
     fi
 }
 
-parse_options() {
-    while [[ ${1:-} == -* ]]; do
-        case $1 in
-            -h|help|--help)
-                show_help
-                exit 0
-                ;;
-            -d|--dir)
-                KLOINK_DIR=$2
-                shift
-                ;;
-            --ssh)
-                KLOINK_KLONE_PROTOCOL=ssh
-                ;;
-            --https)
-                KLOINK_KLONE_PROTOCOL=https
-                ;;
-            *)  # Default case: No more options, so break out of the loop.
-                show_help
-                exit 1
-        esac
-        shift
+kloink_git_version() {
+    local OLD_DIR=`pwd`
+    cd $1
+    git symbolic-ref -q --short HEAD || git describe --tags --exact-match
+    cd $OLD_DIR
+}
+
+kloink_dirs() {
+    MAIN_DIR=`pwd`
+    for dir in $dirs; do
+        app=${dir%.deploy*}
+        if [[ -d $dir/.git ]]; then
+            info ======= $dir =============
+            cd $dir
+            $CMD
+            cd $MAIN_DIR
+        else
+            verbose Skipping $dir
+        fi
     done
+}
+
 }
 
 show_help() {
     # show help while stripping of MarkDown ** bold markup
     sed -e 's/*//g' << EOF
-Usage: ${0##*/} [options] <name> <version>
+Usage:
+  ${0##*/} [options] klone <target-link> <version>
+  ${0##*/} [options] link  <target-link> <version>
+  ${0##*/} [options] status [dir ...]
+  ${0##*/} [options] pull [dir ...]
+  ${0##*/} [options] push [dir ...]
+  ${0##*/} [options] git <subcommand> [args] [-- [dir ...]]
+  ${0##*/} [options] cmd <command> [args] [-- [dir ...]]
 
-This program does a git clone of a repository to have possibly multiple version (tags/branches)
+kloink manages a set of git clones of a repository to use s specific version (tags/branches)
 of the same repo.
 
 Options can be:
-    -d|--dir <dir>   the directory where new clones are stored. see KLOINK_DIR (default: ~/.cache/kloink)
-    -p|--path <dirs> a colon separated list of dirs to search for clones. see KLOINK_PATH
-    --ssh            git clone using ssh (the default)
-    --https          git clone using https
+       --help           show this help
+    -d|--dir <dir>      the directory where new clones are stored. see KLOINK_DIR (default: ~/.cache/kloink)
+    -t|--target <dir>   the target directory where to make the link. see KLOINK_TARGET (default .)
+    -p|--path <dirs>    a colon separated list of dirs to search for clones. see KLOINK_PATH
+       --ssh            git clone using ssh (the default)
+       --https          git clone using https
 
 EOF
 }
@@ -142,7 +217,7 @@ EOF
     DIR=$3
     REPO=${KLOINK_HTTPS_REPO}/${NAME}.git
     SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-    export GIT_ASKPASS=${SCRIPT_DIR}/echo- kloink-repo-psw.sh
+    export GIT_ASKPASS=${SCRIPT_DIR}/echo-kloink-repo-psw.sh
     #CLONE_OPTS="--depth 1"
     git clone  -c advice.detachedHead=false --branch=$VERSION -- $REPO $DIR
 }

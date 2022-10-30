@@ -16,7 +16,6 @@ fi
 : ${KLOINK_VERBOSITY:=}
 
 main() {
-    CMD=help
     while [[ ${1:-} == -* ]]; do
         arg=$1
         case $1 in
@@ -45,13 +44,20 @@ main() {
                 KLOINK_KLONE_PROTOCOL=https
                 ;;
             *)  # Default case: No more options, so break out of the loop.
-                CMD=$1
-                break
+                echo unknow option $1
+                show_help
+                exit 1
                 ;;
         esac
         shift
     done
-    case $CMD in
+    local cmd=${1:-help}
+    shift
+    case $cmd in
+        help)
+            show_help
+            exit 0
+            ;;
         klone)
             kloink_klone "${@}"
             ;;
@@ -108,7 +114,7 @@ kloink_link() {
         echo updating link $path to $dir
         rm $path # somehow the NAME --force does not seem to work
         ln --force -s $dir $path
-    elif [[ -e $name ]]; then
+    elif [[ -e $path ]]; then
         echo ERROR: $name already exists, but is not a symbolic link
         exit 1
     else
@@ -129,7 +135,9 @@ kloink_klone() {
     if [[ -d $dir ]]; then
         _check_klone $dir $version
     elif [[ ! -e $dir ]]; then
-        klone_$KLOINK_KLONE_PROTOCOL $NAME $VERSION
+        local repo=${KLOINK_SSH_REPO}/${name}.git
+        git clone  -c advice.detachedHead=false --branch=$version -- $repo $dir
+        #klone_$KLOINK_KLONE_PROTOCOL $name $version $dir
     else
         echo $dir already exist but is not a correct clone
         exit 1
@@ -174,8 +182,6 @@ kloink_dirs() {
     done
 }
 
-}
-
 show_help() {
     # show help while stripping of MarkDown ** bold markup
     sed -e 's/*//g' << EOF
@@ -204,17 +210,17 @@ EOF
 
 
  klone_ssh() {
-    NAME=$1
-    VERSION=$2
-    DIR=$3
-    REPO=${KLOINK_SSH_REPO}/${NAME}.git
-    git clone  -c advice.detachedHead=false --branch=$VERSION -- $REPO $DIR
+    local name=$1
+    local version=$2
+    local dir=$3
+    local repo=${KLOINK_SSH_REPO}/${name}.git
+    git clone  -c advice.detachedHead=false --branch=$version -- $repo $dir
 }
 
  klone_https() {
-    NAME=$1
-    VERSION=$2
-    DIR=$3
+    local name=$1
+    local version=$2
+    local dir=$3
     REPO=${KLOINK_HTTPS_REPO}/${NAME}.git
     SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     export GIT_ASKPASS=${SCRIPT_DIR}/echo-kloink-repo-psw.sh

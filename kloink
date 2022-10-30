@@ -1,6 +1,12 @@
 #!/usr/bin/bash
 set -e -u
 
+INFO=true
+VERBOSE=false
+function info()    { ${INFO-true} && echo "$*" || true; }
+function verbose() { ${VERBOSE-false} && echo "$*" || true; }
+
+
 # load default settings from config file if exists
 KLOINK_CONFIG_FILE=~/.config/kloink/kloink.conf
 if [[ -f ${KLOINK_CONFIG_FILE} ]]; then
@@ -65,13 +71,13 @@ main() {
             kloink_link "${@}"
             ;;
         s|status)
-            CMD="git status --short"
+            kloink_dirs "git status --short" "${@}"
             ;;
         pull)
-            CMD="git pull $KLOINK_VERBOSITY"
+            kloink_dirs "git pull $KLOINK_VERBOSITY"  "${@}"
             ;;
         push)
-            CMD="git push $KLOINK_VERBOSITY"
+            kloink_dirs "git push $KLOINK_VERBOSITY"  "${@}"
             ;;
         cmd)
             CMD=any_command
@@ -168,14 +174,17 @@ kloink_git_version() {
 }
 
 kloink_dirs() {
-    MAIN_DIR=`pwd`
-    for dir in $dirs; do
+    local cmd=$1
+    shift
+    local main_dir=`pwd`
+    local dir
+    for dir in "${@}"; do
         app=${dir%.deploy*}
         if [[ -d $dir/.git ]]; then
             info ======= $dir =============
             cd $dir
-            $CMD
-            cd $MAIN_DIR
+            $cmd
+            cd $main_dir
         else
             verbose Skipping $dir
         fi

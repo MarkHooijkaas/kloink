@@ -1,6 +1,12 @@
 #!/usr/bin/bash
 set -e -u
 
+if ${KLOINK_ECHO_REPO_PSW_AND_EXIT:-false}; then
+    echo ${KLOINK_REPO_PSW}
+    exit 0
+fi
+
+
 INFO=true
 VERBOSE=false
 function info()    { ${INFO-true} && echo "$*" || true; }
@@ -8,6 +14,7 @@ function verbose() { ${VERBOSE-false} && echo "$*" || true; }
 
 
 # load default settings from config file if exists
+# TODO: provide
 KLOINK_CONFIG_FILE=~/.config/kloink/kloink.conf
 if [[ -f ${KLOINK_CONFIG_FILE} ]]; then
     source ${KLOINK_CONFIG_FILE}
@@ -15,11 +22,10 @@ fi
 
 # use default values, unless vars are already defined
 : ${KLOINK_DIR:=${KLOINK_DEFAULT_DIR:-~/.cache/kloink}}
-: ${KLOINK_PATH:=$KLOINK_DIR}
-: ${KLOINK_SSH_REPO:=${KLOINK_DEFAULT_SSH_REPO:-unknown}}
-: ${KLOINK_HTTPS_REPO:=${KLOINK_DEFAULT_HTTPS_REPO:-unknown}}
-: ${KLOINK_KLONE_PROTOCOL:=ssh}
+: ${KLOINK_BASE_REPO:=${KLOINK_DEFAULT_BASE_REPO:-unknown}}
 : ${KLOINK_VERBOSITY:=}
+#: ${KLOINK_PATH:=$KLOINK_DIR}
+
 
 main() {
     while [[ ${1:-} == -* ]]; do
@@ -31,26 +37,26 @@ main() {
                 ;;
             -v|--verbose)
                 KLOINK_VERBOSITY=-v
+                VERBOSE=true
                 ;;
             -q|--quiet)
                 KLOINK_VERBOSITY=-q
+                INFO=false
+                ;;
+            -c|--config)
+                KLOINK_CONFIG_FILE=$2
+                shift
                 ;;
             -d|--dir)
                 KLOINK_DIR=$2
                 shift
                 ;;
-            -p|--path)
-                KLOINK_PATH=$2
-                shift
-                ;;
-            --ssh)
-                KLOINK_KLONE_PROTOCOL=ssh
-                ;;
-            --https)
-                KLOINK_KLONE_PROTOCOL=https
-                ;;
+            #-p|--path)
+            #    KLOINK_PATH=$2 # TODO: not used
+            #    shift
+            #    ;;
             *)  # Default case: No more options, so break out of the loop.
-                echo unknow option $1
+                echo unknown option $1
                 show_help
                 exit 1
                 ;;
@@ -79,8 +85,14 @@ main() {
         push)
             kloink_dirs "git push $KLOINK_VERBOSITY"  "${@}"
             ;;
+        git)
+            echo git subcommand not implemented yet
+            exit 1
+            ;;
         cmd)
-            CMD=any_command
+            echo cmd subcommand not implemented yet
+            exit 1
+            # TODO CMD=any_command
             any="$1 || true"
             ;;
         *)
@@ -105,8 +117,8 @@ klone_find_in_path() {
 }
 
 kloink_link() {
-    if [ "$#" -ne 2 ]; then
-        echo '2 arguments needed: [path/]<name> <version>'
+    if (($# < 2 || $# > 3 )); then
+        echo '2 or 3 arguments needed: [path/]<name> <version> [repo-url]'
         show_help
         exit 1
     fi
@@ -115,7 +127,7 @@ kloink_link() {
     local name=${path##*/}
     local dir=$KLOINK_DIR/$name-$version
 
-    kloink_klone $name $version  # make sure the klone exists
+    kloink_klone "${@}"  # make sure the klone exists
     if [[ -h $path ]]; then
         echo updating link $path to $dir
         rm $path # somehow the NAME --force does not seem to work
@@ -130,20 +142,31 @@ kloink_link() {
 }
 
 kloink_klone() {
-    if [ "$#" -ne 2 ]; then
-        echo '2 arguments needed: <name> <version>'
+    if (($# < 2 || $# > 3 )); then
+        echo '2 or 3 arguments needed: [path/]<name> <version> [repo-url]'
         show_help
         exit 1
     fi
-    local name=$1
+    local path=$1
     local version=$2
+    local repo=${3:-}
+    local name=${path##*/}  # ignore preceding path to also work with same arguments as link
     local dir=$KLOINK_DIR/$name-$version
     if [[ -d $dir ]]; then
         _check_klone $dir $version
     elif [[ ! -e $dir ]]; then
-        local repo=${KLOINK_SSH_REPO}/${name}.git
+        if [[ -z $repo ]]; then
+            repo=${KLOINK_BASE_REPO}/${name}.git
+        fi
+        if [[ -z ${KLOINK_REPO_PSW:-} ]]; then
+            # this is hack so that this kloink program itself can be used for GIT_ASKPASS
+            # if the setting below is true, running kloink will just echo the password
+            export KLOINK_ECHO_REPO_PSW_AND_EXIT=true
+            export GIT_ASKPASS=${BASH_SOURCE[0]}
+        fi
+        #CLONE_OPTS="--depth 1"
         git clone  -c advice.detachedHead=false --branch=$version -- $repo $dir
-        #klone_$KLOINK_KLONE_PROTOCOL $name $version $dir
+        unset KLOINK_ECHO_REPO_PSW_AND_EXIT
     else
         echo $dir already exist but is not a correct clone
         exit 1
@@ -195,13 +218,13 @@ show_help() {
     # show help while stripping of MarkDown ** bold markup
     sed -e 's/*//g' << EOF
 Usage:
-  ${0##*/} [options] klone <target-link> <version>
-  ${0##*/} [options] link  <target-link> <version>
+  ${0##*/} [options] klone <name> <version> [repo-url]
+  ${0##*/} [options] link  [path/]<name> <version> [repo-url]
   ${0##*/} [options] status [dir ...]
   ${0##*/} [options] pull [dir ...]
   ${0##*/} [options] push [dir ...]
-  ${0##*/} [options] git <subcommand> [args] [-- [dir ...]]
-  ${0##*/} [options] cmd <command> [args] [-- [dir ...]]
+  ${0##*/} [options] git <subcommand> [args] [-- [dir ...]] (TODO)
+  ${0##*/} [options] cmd <command> [args] [-- [dir ...]]    (TODO)
 
 kloink manages a set of git clones of a repository to use s specific version (tags/branches)
 of the same repo.
@@ -211,9 +234,6 @@ Options can be:
     -d|--dir <dir>      the directory where new clones are stored. see KLOINK_DIR (default: ~/.cache/kloink)
     -t|--target <dir>   the target directory where to make the link. see KLOINK_TARGET (default .)
     -p|--path <dirs>    a colon separated list of dirs to search for clones. see KLOINK_PATH
-       --ssh            git clone using ssh (the default)
-       --https          git clone using https
-
 EOF
 }
 

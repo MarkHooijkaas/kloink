@@ -15,7 +15,7 @@ function verbose() { ${VERBOSE-false} && echo "$*" || true; }
 
 # load default settings from config file if exists
 # TODO: read file from command line: chicken/egg problem
-KLOINK_CONFIG_FILE=~/.config/kloink/kloink.conf
+: ${KLOINK_CONFIG_FILE:=~/.config/kloink/kloink.conf}
 if [[ -f ${KLOINK_CONFIG_FILE} ]]; then
     source ${KLOINK_CONFIG_FILE}
 fi

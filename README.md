@@ -10,7 +10,7 @@ Kloink has several goals
 - can be used from commandline, but also in automated build scripts.
 Just type:
 ```
-kloink <appname> <version>
+kloink link <appname> <version>
 ```
 
 # Usage

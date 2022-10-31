@@ -14,7 +14,7 @@ function verbose() { ${VERBOSE-false} && echo "$*" || true; }
 
 
 # load default settings from config file if exists
-# TODO: provide
+# TODO: read file from command line: chicken/egg problem
 KLOINK_CONFIG_FILE=~/.config/kloink/kloink.conf
 if [[ -f ${KLOINK_CONFIG_FILE} ]]; then
     source ${KLOINK_CONFIG_FILE}
@@ -22,7 +22,8 @@ fi
 
 # use default values, unless vars are already defined
 : ${KLOINK_DIR:=${KLOINK_DEFAULT_DIR:-~/.cache/kloink}}
-: ${KLOINK_BASE_REPO:=${KLOINK_DEFAULT_BASE_REPO:-unknown}}
+: ${KLOINK_REPO_BASE:=${KLOINK_DEFAULT_BASE_REPO:-unknown}}
+: ${KLOINK_REPO:=${KLOINK_DEFAULT_REPO:-}}
 : ${KLOINK_VERBOSITY:=}
 #: ${KLOINK_PATH:=$KLOINK_DIR}
 
@@ -49,6 +50,14 @@ main() {
                 ;;
             -d|--dir)
                 KLOINK_DIR=$2
+                shift
+                ;;
+            -b|--base-repo)
+                KLOINK_REPO_BASE=$2
+                shift
+                ;;
+            -r|--repo)
+                KLOINK_REPO=$2
                 shift
                 ;;
             #-p|--path)
@@ -149,14 +158,14 @@ kloink_klone() {
     fi
     local path=$1
     local version=$2
-    local repo=${3:-}
+    local repo=${3:-$KLOINK_REPO}
     local name=${path##*/}  # ignore preceding path to also work with same arguments as link
     local dir=$KLOINK_DIR/$name-$version
     if [[ -d $dir ]]; then
         _check_klone $dir $version
     elif [[ ! -e $dir ]]; then
         if [[ -z $repo ]]; then
-            repo=${KLOINK_BASE_REPO}/${name}.git
+            repo=${KLOINK_REPO_BASE}/${name}.git
         fi
         if [[ -z ${KLOINK_REPO_PSW:-} ]]; then
             # this is hack so that this kloink program itself can be used for GIT_ASKPASS
@@ -237,27 +246,6 @@ Options can be:
     -t|--target <dir>   the target directory where to make the link. see KLOINK_TARGET (default .)
 EOF
 }
-
-
- klone_ssh() {
-    local name=$1
-    local version=$2
-    local dir=$3
-    local repo=${KLOINK_SSH_REPO}/${name}.git
-    git clone  -c advice.detachedHead=false --branch=$version -- $repo $dir
-}
-
- klone_https() {
-    local name=$1
-    local version=$2
-    local dir=$3
-    REPO=${KLOINK_HTTPS_REPO}/${NAME}.git
-    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-    export GIT_ASKPASS=${SCRIPT_DIR}/echo-kloink-repo-psw.sh
-    #CLONE_OPTS="--depth 1"
-    git clone  -c advice.detachedHead=false --branch=$VERSION -- $REPO $DIR
-}
-
 
 
 main "${@}"

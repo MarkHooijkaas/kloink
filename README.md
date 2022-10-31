@@ -15,16 +15,27 @@ kloink <appname> <version>
 
 # Usage
 ```
-Usage: kloink [options] <name> <version>
+Usage: kloink [options] <subcommand> options <name> <version>
 
 This program does a git clone of a repository to have possibly multiple version (tags/branches)
+of the same repo. The subcommand can be any of the following
+  klone <name> <version> [repo-url]
+  link  [path/]<name> <version> [repo-url]
+  status [dir ...]
+  pull [dir ...]
+  push [dir ...]
+  git <subcommand> [args] [-- [dir ...]] (TODO)
+  cmd <command> [args] [-- [dir ...]]    (TODO)
+
+kloink manages a set of git clones of a repository to use specific version (tags/branches)
 of the same repo.
 
-Options can be:
-    -d|--dir <dir>   the directory where new clones are stored. see KLOINK_DIR (default: ~/.cache/kloink)
-    -p|--path <dirs> a colon separated list of dirs to search for clones. see KLOINK_PATH
-    --ssh            git clone using ssh (the default)
-    --https          git clone using https
+General options can be:
+       --help           show this help
+    -v|--verbose        show extra output
+    -q|--quiet          show little output
+    -d|--dir <dir>      the directory where new clones are stored. see KLOINK_DIR (default: ~/.cache/kloink)
+    -t|--target <dir>   the target directory where to make the link. see KLOINK_TARGET (default .)
 ```
 
 # Configuration:
@@ -39,8 +50,7 @@ These can be set in several manners:
 The most important variables are:
 - `KLOINK_DIR`: the directory in which all clones will be stored (default ~/.cache/kloink )
 - `KLOINK_KLONE_PROTOCOL`: The `git clone` protocol if not specified (default is ssh)
-- `KLOINK_SSH_REPO`: the repository when doing a git clone using ssh protocol
-- `KLOINK_HTTPS_REPO`: the repository when doing a git clone using https protocol
+- `KLOINK_BASE_REPO`: the repository when doing a git clone using ssh protocol
 - `KLOINK_REPO_PSW`: password that is used when git asks for a password with https checkout
 
 ## Config file `~/.config/kloink/kloink.conf`

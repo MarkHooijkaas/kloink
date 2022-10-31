@@ -231,9 +231,10 @@ of the same repo.
 
 Options can be:
        --help           show this help
+    -v|--verbose        show extra output
+    -q|--quiet          show little output
     -d|--dir <dir>      the directory where new clones are stored. see KLOINK_DIR (default: ~/.cache/kloink)
     -t|--target <dir>   the target directory where to make the link. see KLOINK_TARGET (default .)
-    -p|--path <dirs>    a colon separated list of dirs to search for clones. see KLOINK_PATH
 EOF
 }
 

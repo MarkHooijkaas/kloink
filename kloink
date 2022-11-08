@@ -60,6 +60,10 @@ main() {
                 KLOINK_REPO=$2
                 shift
                 ;;
+            -t|--target)
+                target=$2
+                shift
+                ;;
             #-p|--path)
             #    KLOINK_PATH=$2 # TODO: not used
             #    shift
@@ -135,18 +139,19 @@ kloink_link() {
     local version=$2
     local name=${path##*/}
     local dir=$KLOINK_DIR/$name-$version
+    : ${target:=$name}
 
     kloink_klone "${@}"  # make sure the klone exists
-    if [[ -h $path ]]; then
-        echo updating link $path to $dir
-        rm $path # somehow the NAME --force does not seem to work
-        ln --force -s $dir $path
-    elif [[ -e $path ]]; then
-        echo ERROR: $name already exists, but is not a symbolic link
+    if [[ -h $target ]]; then
+        info updating link $target to $dir
+        rm $target # somehow the NAME --force does not seem to work
+        ln --force -s $dir $target
+    elif [[ -e $target ]]; then
+        echo ERROR: $target already exists, but is not a symbolic link
         exit 1
     else
-        echo creating link $path to $dir
-        ln -s $dir $path
+        info creating link $target to $dir
+        ln -s $dir $target
     fi
 }
 
@@ -162,7 +167,7 @@ kloink_klone() {
     local name=${path##*/}  # ignore preceding path to also work with same arguments as link
     local dir=$KLOINK_DIR/$name-$version
     if [[ -d $dir ]]; then
-        _check_klone $dir $version
+        _check_klone $target $version
     elif [[ ! -e $dir ]]; then
         if [[ -z $repo ]]; then
             repo=${KLOINK_REPO_BASE}/${name}.git
@@ -186,7 +191,7 @@ _check_klone() {
     local dir=$1
     local version=$2
     if [[ -d $dir ]]; then
-        echo $dir already exists, checking if version is $version
+        verbose $dir already exists, checking if version is $version
         cur_version=$(kloink_git_version $dir)
         if [[ $version != $cur_version ]]; then
             echo Current dir $dir is on version $cur_version, please remove this first

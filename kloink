@@ -22,8 +22,8 @@ fi
 
 # use default values, unless vars are already defined
 : ${KLOINK_DIR:=${KLOINK_DEFAULT_DIR:-~/.cache/kloink}}
-: ${KLOINK_REPO_BASE:=${KLOINK_DEFAULT_BASE_REPO:-unknown}}
-: ${KLOINK_REPO:=${KLOINK_DEFAULT_REPO:-}}
+#: ${KLOINK_REPO_BASE:=${KLOINK_DEFAULT_BASE_REPO:-unknown}}
+#: ${KLOINK_REPO:=${KLOINK_DEFAULT_REPO:-}}
 : ${KLOINK_VERBOSITY:=}
 #: ${KLOINK_PATH:=$KLOINK_DIR}
 
@@ -52,18 +52,18 @@ main() {
                 KLOINK_DIR=$2
                 shift
                 ;;
-            -b|--base-repo)
-                KLOINK_REPO_BASE=$2
-                shift
-                ;;
-            -r|--repo)
-                KLOINK_REPO=$2
-                shift
-                ;;
-            -t|--target)
-                target=$2
-                shift
-                ;;
+#            -b|--base-repo)
+#                KLOINK_REPO_BASE=$2
+#                shift
+#                ;;
+#            -r|--repo)
+#                KLOINK_REPO=$2
+#                shift
+#                ;;
+#            -t|--target)
+#                target=$2
+#                shift
+#                ;;
             #-p|--path)
             #    KLOINK_PATH=$2 # TODO: not used
             #    shift
@@ -139,19 +139,21 @@ kloink_link() {
     local version=$2
     local name=${path##*/}
     local dir=$KLOINK_DIR/$name-$version
-    : ${target:=$name}
-
-    kloink_klone "${@}"  # make sure the klone exists
+    local target=${3:-$name}
+    if [[  "$dir" != /* ]]; then
+        link_options='--relative'
+    fi
+    #kloink_klone "${@}"  # make sure the klone exists
     if [[ -h $target ]]; then
         info updating link $target to $dir
         rm $target # somehow the NAME --force does not seem to work
-        ln --force -s $dir $target
+        ln --force -s ${link_options:-} $dir $target
     elif [[ -e $target ]]; then
         echo ERROR: $target already exists, but is not a symbolic link
         exit 1
     else
         info creating link $target to $dir
-        ln -s $dir $target
+        ln -s ${link_options:-} $dir $target
     fi
 }
 
@@ -166,25 +168,31 @@ kloink_klone() {
     local repo=${3:-$KLOINK_REPO}
     local name=${path##*/}  # ignore preceding path to also work with same arguments as link
     local dir=$KLOINK_DIR/$name-$version
+    if [[ ! -z ${KLOINK_REPO_PSW:-} ]]; then
+        # this is hack so that this kloink program itself can be used for GIT_ASKPASS
+        # if the setting below is true, running kloink will just echo the password
+        export KLOINK_ECHO_REPO_PSW_AND_EXIT=true
+        export GIT_ASKPASS=${BASH_SOURCE[0]}
+    fi
     if [[ -d $dir ]]; then
-        _check_klone $target $version
+        _check_klone $dir $version
+        if ${KLOINK_PULL:-false}; then
+            cd $dir
+            git pull
+            cd -
+        fi
     elif [[ ! -e $dir ]]; then
         if [[ -z $repo ]]; then
-            repo=${KLOINK_REPO_BASE}/${name}.git
-        fi
-        if [[ -z ${KLOINK_REPO_PSW:-} ]]; then
-            # this is hack so that this kloink program itself can be used for GIT_ASKPASS
-            # if the setting below is true, running kloink will just echo the password
-            export KLOINK_ECHO_REPO_PSW_AND_EXIT=true
-            export GIT_ASKPASS=${BASH_SOURCE[0]}
+            repo=${ }/${name}.git
         fi
         #CLONE_OPTS="--depth 1"
+        verbose "git clone  -c advice.detachedHead=false --branch=$version -- $repo $dir"
         git clone  -c advice.detachedHead=false --branch=$version -- $repo $dir
-        unset KLOINK_ECHO_REPO_PSW_AND_EXIT
     else
         echo $dir already exist but is not a correct clone
         exit 1
     fi
+    unset KLOINK_ECHO_REPO_PSW_AND_EXIT
 }
 
 _check_klone() {
@@ -233,7 +241,7 @@ show_help() {
     sed -e 's/*//g' << EOF
 Usage:
   ${0##*/} [options] klone <name> <version> [repo-url]
-  ${0##*/} [options] link  [path/]<name> <version> [repo-url]
+  ${0##*/} [options] link  [path/]<name> <version> [link]
   ${0##*/} [options] status [dir ...]
   ${0##*/} [options] pull [dir ...]
   ${0##*/} [options] push [dir ...]
@@ -248,7 +256,6 @@ Options can be:
     -v|--verbose        show extra output
     -q|--quiet          show little output
     -d|--dir <dir>      the directory where new clones are stored. see KLOINK_DIR (default: ~/.cache/kloink)
-    -t|--target <dir>   the target directory where to make the link. see KLOINK_TARGET (default .)
 EOF
 }
 

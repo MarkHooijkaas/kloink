@@ -1,6 +1,8 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 set -e -u
 
+# kloink can be used to only echo the password needed for GIT_ASKPASS
+# by setting KLOINK_ECHO_REPO_PSW_AND_EXIT to true
 if ${KLOINK_ECHO_REPO_PSW_AND_EXIT:-false}; then
     echo ${KLOINK_REPO_PSW}
     exit 0
@@ -147,7 +149,7 @@ kloink_link() {
     if [[ -h $target ]]; then
         info updating link $target to $dir
         rm $target # somehow the NAME --force does not seem to work
-        ln --force -s ${link_options:-} $dir $target
+        ln -f -s ${link_options:-} $dir $target
     elif [[ -e $target ]]; then
         echo ERROR: $target already exists, but is not a symbolic link
         exit 1
@@ -178,8 +180,13 @@ kloink_klone() {
         _check_klone $dir $version
         if ${KLOINK_PULL:-false}; then
             cd $dir
-            git pull
-            cd -
+            if git symbolic-ref --short HEAD 2>/dev/null >/dev/null; then
+                info autopulling $dir
+                git pull
+            else
+                info not a branch, nothing to autopull
+            fi
+            cd - >/dev/null
         fi
     elif [[ ! -e $dir ]]; then
         if [[ -z $repo ]]; then
